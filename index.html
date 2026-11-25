@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BATTLETECH // FORCE ROSTER</title>
+
+  <!-- Google Fonts: Chakra Petch (Tactical Display), Inter (Body), JetBrains Mono (Stats & Variants) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Custom Tactical Theme Configuration -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            tactical: {
+              bg: '#0c1015',
+              surface: '#141a23',
+              surfaceAlt: '#1a222e',
+              border: '#263142',
+              muted: '#8b9bb2',
+            },
+          },
+          fontFamily: {
+            display: ['"Chakra Petch"', 'sans-serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+</head>
+
+<body class="bg-tactical-bg text-slate-100 font-sans antialiased min-h-screen selection:bg-amber-500/30 selection:text-amber-200">
+  <!-- Main Page Container -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+    <!-- Compact Tactical Header (No navigation bar) -->
+    <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b border-tactical-border">
+      <div>
+        <div class="flex items-center gap-2.5">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.75)]"></span>
+          <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-wider text-slate-50 uppercase">
+            BATTLETECH <span class="text-amber-500">//</span> FORCE ROSTER
+          </h1>
+        </div>
+        <p class="mt-1 text-sm text-tactical-muted">
+          Available Tabletop Miniature Lances &amp; Force Database
+        </p>
+      </div>
+
+      <!-- Live Telemetry Strip (Updates dynamically with active faction filter) -->
+      <div class="flex items-center gap-3 font-mono text-xs sm:text-sm" aria-label="Visible roster telemetry">
+        <div class="bg-tactical-surface border border-tactical-border rounded-lg px-3 py-1.5 flex items-center gap-2">
+          <span class="text-tactical-muted uppercase text-[11px] tracking-wider">Forces</span>
+          <span id="stat-visible-forces" class="text-slate-100 font-semibold">0</span>
+        </div>
+        <div class="bg-tactical-surface border border-tactical-border rounded-lg px-3 py-1.5 flex items-center gap-2">
+          <span class="text-tactical-muted uppercase text-[11px] tracking-wider">Mechs</span>
+          <span id="stat-visible-mechs" class="text-amber-400 font-semibold">0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Compact Faction Filter Pills -->
+    <section aria-label="Filter forces by faction" class="mt-5 mb-6">
+      <div id="faction-filters" class="flex flex-wrap items-center gap-2" role="tablist" aria-label="Faction filters">
+        <!-- Dynamically populated by JavaScript -->
+      </div>
+    </section>
+
+    <!-- Force Cards Grid -->
+    <main>
+      <div
+        id="forces-grid"
+        class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 items-start"
+      >
+        <!-- Force Cards are injected here on page load -->
+      </div>
+
+      <!-- Empty State (Shown when a faction has 0 registered forces) -->
+      <div
+        id="empty-state"
+        class="hidden bg-tactical-surface border border-dashed border-tactical-border rounded-xl p-8 sm:p-10 text-center max-w-xl mx-auto my-8"
+      >
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-tactical-bg border border-tactical-border text-tactical-muted mb-4">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+        </div>
+        <h2 id="empty-state-title" class="font-display text-lg font-bold tracking-wide text-slate-100 uppercase">
+          No Forces Registered
+        </h2>
+        <p id="empty-state-message" class="mt-2 text-sm text-tactical-muted leading-relaxed">
+          No forces are currently registered under this faction.
+        </p>
+        <button
+          id="empty-reset-btn"
+          type="button"
+          class="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 hover:bg-amber-500/25 text-xs font-mono uppercase tracking-wider transition-colors"
+        >
+          Show All Forces
+        </button>
+      </div>
+    </main>
+
+    <!-- Minimal Tactical Footer -->
+    <footer class="mt-12 pt-5 border-t border-tactical-border/70 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono text-tactical-muted">
+      <span>COMSTAR // HPG FORCE REGISTRY</span>
+      <span>ALPHA STRIKE STANDARD // 175 PV FORMAT</span>
+    </footer>
+  </div>
+
+  <!-- Application Data & Rendering Logic -->
+  <script>
+    /**
+     * =========================================================================
+     * FORCES_DATA
+     * =========================================================================
+     * Central database of available BattleTech forces.
+     *
+     * HOW TO ADD AN INNER SPHERE OR CLAN FORCE:
+     * Copy the template object below and append it to the FORCES_DATA array:
+     *
+     * {
+     *   id: 'unique-force-slug',
+     *   name: 'Force Group Name',
+     *   faction: 'Inner Sphere', // Options: 'Mercenary' | 'Inner Sphere' | 'Clan'
+     *   pointsUsed: 175,
+     *   pointsMax: 175,
+     *   lore: 'Full background summary for this lance or star.',
+     *   mechs: [
+     *     // weightClass options: 'Light' | 'Medium' | 'Heavy' | 'Assault'
+     *     { name: 'Atlas', variant: 'AS7-D', weightClass: 'Assault', pv: 52 },
+     *   ],
+     *   aerospace: [
+     *     { name: 'Stuka STU-K5', role: 'Strafing' },
+     *   ],
+     * },
+     * =========================================================================
+     */
+    const FORCES_DATA = [
+      {
+        id: '21st-centauri-lancers',
+        name: '21st Centauri Lancers',
+        faction: 'Mercenary',
+        pointsUsed: 173,
+        pointsMax: 175,
+        lore:
+          "Born from an honorable mutiny against the Capellan Confederation in the twenty-eighth century over unpaid contracts, the 21st Centauri Lancers operate on ironclad professionalism, high ethical standards, and absolute tactical autonomy. Bolstered by recovered Star League caches during the Third Succession War, the Lancers served with distinction for centuries before nearly being annihilated during the Jihad. Rebuilt in service to the Lyran Commonwealth, the unit recently aligned with the Tamar Pact, securing Clan technology to overhaul and modernize their commands. Renowned for surgical long-range gunnery and strict contract compliance, the Lancers refuse to tolerate administrative interference or dishonorable employers. This lance acts as a pristine field element, bringing the unit's historic marksmanship and unshakable battlefield integrity to bear.",
+        mechs: [
+          { name: 'Centurion', variant: 'CN9-AH', weightClass: 'Medium', pv: 29 },
+          { name: 'Starslayer', variant: 'STY-2C', weightClass: 'Medium', pv: 30 },
+          { name: 'Trebuchet', variant: 'TBT-3C', weightClass: 'Medium', pv: 47 },
+          { name: 'Annihilator', variant: "C 'Gausszilla'", weightClass: 'Assault', pv: 67 },
+        ],
+        aerospace: [
+          { name: 'Meteor-U', role: 'Heavy Strike' },
+          { name: 'Rogue RGU-133E', role: 'Light Strike' },
+        ],
+      },
+      {
+        id: 'brions-legion',
+        name: "Brion's Legion",
+        faction: 'Mercenary',
+        pointsUsed: 174,
+        pointsMax: 175,
+        lore:
+          "Originally entering service with the Draconis Combine in 3013, Brion's Legion learned hard lessons about political betrayal and abandoned contracts during the Fourth Succession War. Rescued and covertly rearmed by ComStar, the Legion spent decades garrisoning hyperpulse stations outfitted in pristine, Star League-era 'Mechs and sporting ComStar's stark white-and-gray livery. Though the formal contract lapsed long ago, the Legion deliberately kept the distinctive paint scheme, maintaining that the phantom sight of an ancient Com Guard division still buys them that invaluable first-turn volley against superstitious raiders. Today, the Legion operates as a cagey, hardened outfit that trusts only cold iron, long memory, and clean sightlines. This lance represents their pragmatic doctrine: efficient, unyielding, and impossible to rattle.",
+        mechs: [
+          { name: 'UrbanMech', variant: 'UM-R69', weightClass: 'Light', pv: 23 },
+          { name: 'Sentinel', variant: 'STN-6S', weightClass: 'Medium', pv: 31 },
+          { name: 'Flashman', variant: 'FLS-10E', weightClass: 'Heavy', pv: 59 },
+          { name: 'Crockett', variant: 'CRK-5004-1', weightClass: 'Assault', pv: 61 },
+        ],
+        aerospace: [{ name: 'Stuka STU-K5', role: 'Strafing' }],
+      },
+      {
+        id: 'crescent-hawks',
+        name: 'Crescent Hawks',
+        faction: 'Mercenary',
+        pointsUsed: 175,
+        pointsMax: 175,
+        lore:
+          "Forged as a covert strike unit answering directly to Katrina Steiner, the Crescent Hawks built their renown on mobile warfare, surgical reconnaissance, and relentless tactical flexibility. Cementing their reputation during the brutal guerrilla actions of the Chara III campaign, their historic camaraderie with the Kell Hounds gradually turned this specialized Lyran outfit into a fiercely independent mercenary command. Reconstituted in the Jihad era around veteran-heavy formations, the Hawks adhere to a signature battlefield doctrine: dynamic vanguard elements bypass and sever supply lines while supporting lances collapse the destabilized flank. The result is a sharp, surgical fighting force tailored for fluid operations. This lance serves as an autonomous detachment, maintaining the Hawks' celebrated lineage of pinpoint maneuvers and enduring loyalty to the Steiner legacy.",
+        mechs: [
+          { name: 'Blackjack', variant: 'BJ-4', weightClass: 'Medium', pv: 25 },
+          { name: 'Wolverine', variant: 'WVR-7K', weightClass: 'Medium', pv: 44 },
+          { name: 'Awesome', variant: 'AWS-8Q', weightClass: 'Assault', pv: 47 },
+          { name: 'Highlander', variant: 'HGN-740', weightClass: 'Assault', pv: 59 },
+        ],
+        aerospace: [
+          { name: 'Typhoon TFN-2A', role: 'Heavy Strike' },
+          { name: 'Dagger DARO-1', role: 'Light Strike' },
+        ],
+      },
+      {
+        id: 'eridani-light-horse',
+        name: 'Eridani Light Horse',
+        faction: 'Mercenary',
+        pointsUsed: 174,
+        pointsMax: 175,
+        lore:
+          "Tracing their storied lineage to the Star League Defense Force's 71st Light Horse Regiment, the Eridani Light Horse remain paragon exemplars of professional discipline, battlefield restraint, and classical honor. Choosing to stand vigilant in the Inner Sphere rather than join Aleksandr Kerensky's Exodus, the unit weathered centuries of brutal Succession Wars while fiercely preserving its ancient heritage. Though virtually shattered during the dark conflicts of the late thirty-first century, the command was painstakingly reunited in 3151 under Lieutenant General Amelia Donovan. Guided by mobile cavalry maneuvers and an uncompromising code of conduct, the Horse once again offer a steadying, veteran hand to an unstable galaxy. This lance represents the reborn Light Horse, riding under the iconic prancing stallion to deliver principled firepower to the ilClan age.",
+        mechs: [
+          { name: 'Panther', variant: 'PNT-14R', weightClass: 'Light', pv: 25 },
+          { name: 'Spider', variant: 'SDR-C', weightClass: 'Light', pv: 34 },
+          { name: 'Orion', variant: 'ON1-K', weightClass: 'Heavy', pv: 47 },
+          { name: 'Stalker', variant: 'STK-3F Jamison', weightClass: 'Assault', pv: 68 },
+        ],
+        aerospace: [{ name: 'Starfire SF-1X', role: 'Strafing' }],
+      },
+      {
+        id: 'grave-walkers',
+        name: 'Grave Walkers',
+        faction: 'Mercenary',
+        pointsUsed: 173,
+        pointsMax: 175,
+        lore:
+          "Tempered on the bleak, frozen wastes of Bone-Norman, the Grave Walkers are grim, fatalistic professionals built for grinding combined-arms warfare. After distinguishing themselves in the War of 3039, the command suffered catastrophic losses against Clan Jade Falcon during the initial invasion, surviving as an under-strength shadow until their revitalization alongside the Kell Hounds during the Jihad. Rebuilt into a ruthless, battle-scarred heavy hammer, the Walkers made their name hunting down fleeing Word of Blake forces in the ruins of Tharkad. Today, having integrated their surviving assets into the Kell Hounds' broader orbit, they bring an unblinking, heavy-metal doctrine to every deployment. This lance is a vanguard of that hard-bitten survivor culture, relentless in pursuit and indifferent to hardship.",
+        mechs: [
+          { name: 'Wraith', variant: 'TR2', weightClass: 'Medium', pv: 46 },
+          { name: 'Warhammer', variant: 'WHM-7M', weightClass: 'Heavy', pv: 35 },
+          { name: 'Marauder', variant: 'MAD-3R', weightClass: 'Heavy', pv: 42 },
+          { name: 'Archer', variant: 'C', weightClass: 'Heavy', pv: 50 },
+        ],
+        aerospace: [{ name: 'Slayer SL-15', role: 'Strafing' }],
+      },
+      {
+        id: 'gray-death-legion',
+        name: 'Gray Death Legion',
+        faction: 'Mercenary',
+        pointsUsed: 173,
+        pointsMax: 175,
+        lore:
+          "Born from the improvised anti-'Mech militia organized by Grayson Death Carlyle on Trellwan in 3024, the Gray Death Legion transformed unconventional warfare into an art form. Their recovery and distribution of the Helm Memory Core ignited a technological renaissance across the Inner Sphere, securing their place in military history alongside their trademark combined-arms and anti-'Mech infantry tactics. Though broken during the defense of Hesperus II in 3065, the Legion's spirit endured, resurrected decades later by Carlyle's descendants as a modern, fast-striking combined-arms force. Today, the Legion operates across the fractured borders of the Hinterlands, outmaneuvering heavier foes through calculated aggression and battlefield cunning. This lance functions as an adaptive strike element, carrying the storied grinning-skull standard forward into the fires of a new era.",
+        mechs: [
+          { name: 'Hatchetman', variant: 'HCT-6D', weightClass: 'Medium', pv: 32 },
+          { name: 'Axman', variant: 'AXM-1N', weightClass: 'Heavy', pv: 40 },
+          { name: 'Grasshopper', variant: 'GHR-8K', weightClass: 'Heavy', pv: 47 },
+          { name: 'Charger', variant: 'CGR-3K', weightClass: 'Assault', pv: 54 },
+        ],
+        aerospace: [{ name: 'Hellcat HCT-213B', role: 'Strafing' }],
+      },
+      {
+        id: 'hansens-roughriders',
+        name: "Hansen's Roughriders",
+        faction: 'Mercenary',
+        pointsUsed: 173,
+        pointsMax: 175,
+        lore:
+          "Crude in quarters but devastating on the line, Hansen's Roughriders are veteran brawlers whose roughhouse reputation is matched by exceptional operational reliability. First entering Lyran service around 3018, they made history by halting Wolf's Dragoons in their tracks during the Thirteenth Battle of Hesperus II. Though they sustained catastrophic casualties holding the line for the Republic of the Sphere during Clan Wolf's assault on Terra, the Roughriders refused to fold, regrouping to accept landhold grants and titles from the Federated Suns. Known for heavy armor sweeps and blunt-force shock attacks, the unit operates with an abrasive, blue-collar grit that breaks opposing battle lines through pure attrition. This lance is an active field detachment, embodying the unyielding armor and bloody-minded persistence that has kept the Roughriders fighting into the ilClan era.",
+        mechs: [
+          { name: 'Firestarter', variant: 'FS9-M3', weightClass: 'Light', pv: 30 },
+          { name: 'Hunchback', variant: 'HBK-4P', weightClass: 'Medium', pv: 37 },
+          { name: 'Thunderbolt', variant: 'TDR-7SE', weightClass: 'Heavy', pv: 50 },
+          { name: 'Black Knight', variant: 'BL-18-KNT', weightClass: 'Heavy', pv: 56 },
+        ],
+        aerospace: [
+          { name: 'Eisensturm EST-OA', role: 'Heavy Bombing' },
+          { name: 'Spad SPD-502', role: 'Light Air Cover' },
+        ],
+      },
+      {
+        id: 'kell-hounds',
+        name: 'Kell Hounds',
+        faction: 'Mercenary',
+        pointsUsed: 175,
+        pointsMax: 175,
+        lore:
+          "Founded by the legendary MechWarrior Morgan Kell, the Kell Hounds are one of the most celebrated mercenary units in the Inner Sphere, defined by their unshakable loyalty and a moral compass rarely seen in the trade. Originally formed as a defensive wall against the tyranny of House Kurita, they forged their legendary status across pivotal conflicts from the Succession Wars to the Clan Invasion. Despite facing near-destruction during the Dark Age, the unit proved remarkably resilient and quietly re-emerged in 3151. Today's Kell Hounds are a smaller, scattered force that blends surviving veterans with new blood drawn to the iconic legacy. By adopting a decentralized structure, they operate as highly mobile, elusive formations across the Inner Sphere. This lance is one such detachment, a loyal remnant tasked with carrying the proud Kell Hounds tradition forward into a dangerous new age.",
+        mechs: [
+          { name: 'Locust', variant: 'LCT-5M2', weightClass: 'Light', pv: 25 },
+          { name: 'Phoenix Hawk', variant: 'PXH-5L', weightClass: 'Medium', pv: 41 },
+          { name: 'Rifleman', variant: 'RFL-6X', weightClass: 'Heavy', pv: 42 },
+          { name: 'Atlas', variant: 'AS8-S', weightClass: 'Assault', pv: 67 },
+        ],
+        aerospace: [{ name: 'Lucifer LCF-R15', role: 'Strafing' }],
+      },
+      {
+        id: 'lethal-injection',
+        name: 'Lethal Injection',
+        faction: 'Mercenary',
+        pointsUsed: 173,
+        pointsMax: 175,
+        lore:
+          'Originally chartered on Outreach in 3056 as a corporate write-off for a Periphery realm, Lethal Injection cut their teeth hunting genuine deep-periphery raiders rather than running textbook firing drills. Their trial by fire forged a tactical identity centered on calculated baiting, brutal ambushes, and ruthless asymmetrical warfare. After bloody urban holding actions against House Liao during the Jihad, the unit fractured during the Victoria War; abandoned on Jacson while their sister elements evacuated, the stranded pilots refused to lay down their arms. Out-scavenging and out-surviving their oppressors, they gradually fought their way back onto the mercenary registry. This lance represents those original Jacson survivors, deploying a scrappy, improvised, and lethal style that exploits enemy overconfidence to claim victory against superior odds.',
+        mechs: [
+          { name: 'Raven', variant: 'RVN-5L', weightClass: 'Light', pv: 33 },
+          { name: 'Quickdraw', variant: 'QKD-9M', weightClass: 'Heavy', pv: 43 },
+          { name: 'Catapult', variant: 'CPLT-C1B', weightClass: 'Heavy', pv: 44 },
+          { name: 'Victor', variant: 'VTR-10L', weightClass: 'Assault', pv: 53 },
+        ],
+        aerospace: [{ name: 'Defiance DFC-O', role: 'Strafing' }],
+      },
+      {
+        id: 'narhals-raiders',
+        name: "Narhal's Raiders",
+        faction: 'Mercenary',
+        pointsUsed: 172,
+        pointsMax: 175,
+        lore:
+          "Formed in the dying embers of the First Succession War from shattered Star League remnants and Periphery outcasts, Narhal's Raiders abandoned their early history of opportunistic piracy to become a respected, iron-clad mercenary regiment. For centuries, the Raiders served the Federated Suns and Lyran Commonwealth as unglamorous defensive specialists, taking on prolonged, grinding campaigns that chewed through less durable commands. While historic attrition across the Clan Invasion and Dark Age whittled their numbers, repeated engagements with Clan forces transformed their battlefield identity. The Raiders retain their foundational affinity for brutal, short-range assault pushes, but now execute them with coordinated fire disciplines and tactical agility. This lance stands as a veteran vanguard, eager to close the distance and hammer the opposition to scrap.",
+        mechs: [
+          { name: 'Hermit Crab', variant: 'HMC-14', weightClass: 'Light', pv: 27 },
+          { name: 'Crab', variant: 'CRB-27B', weightClass: 'Medium', pv: 40 },
+          { name: 'Dragon', variant: 'DRG-7N', weightClass: 'Heavy', pv: 42 },
+          { name: 'King Crab', variant: 'KGC-001', weightClass: 'Assault', pv: 58 },
+        ],
+        aerospace: [
+          { name: 'Vulcan VLC-5N', role: 'Heavy Strike' },
+          { name: 'Trident TRN-3T', role: 'Light Strike' },
+        ],
+      },
+    ];
+
+    // =========================================================================
+    // DESIGN TOKENS & HELPERS
+    // =========================================================================
+
+    const FACTIONS = ['All', 'Mercenary', 'Inner Sphere', 'Clan'];
+
+    const FACTION_THEMES = {
+      All: {
+        pillActive: 'bg-slate-100 text-slate-950 border-slate-100 font-semibold',
+        pillInactive: 'bg-tactical-surface text-slate-300 border-tactical-border hover:border-slate-500',
+      },
+      Mercenary: {
+        badge: 'bg-amber-500/15 text-amber-400 border-amber-500/35',
+        accentBar: 'bg-amber-500',
+        pillActive: 'bg-amber-500/20 text-amber-300 border-amber-500/60 font-semibold',
+        pillInactive: 'bg-tactical-surface text-slate-300 border-tactical-border hover:border-amber-500/40',
+      },
+      'Inner Sphere': {
+        badge: 'bg-sky-500/15 text-sky-400 border-sky-500/35',
+        accentBar: 'bg-sky-500',
+        pillActive: 'bg-sky-500/20 text-sky-300 border-sky-500/60 font-semibold',
+        pillInactive: 'bg-tactical-surface text-slate-300 border-tactical-border hover:border-sky-500/40',
+      },
+      Clan: {
+        badge: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35',
+        accentBar: 'bg-emerald-500',
+        pillActive: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60 font-semibold',
+        pillInactive: 'bg-tactical-surface text-slate-300 border-tactical-border hover:border-emerald-500/40',
+      },
+    };
+
+    /**
+     * Returns Tailwind badge classes for a BattleMech's weight class.
+     * @param {string} weightClass - 'Light' | 'Medium' | 'Heavy' | 'Assault'
+     * @returns {string}
+     */
+    function getWeightBadgeClass(weightClass) {
+      switch (weightClass) {
+        case 'Light':
+          return 'bg-sky-500/15 text-sky-300 border-sky-500/30';
+        case 'Medium':
+          return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+        case 'Heavy':
+          return 'bg-orange-500/15 text-orange-300 border-orange-500/30';
+        case 'Assault':
+          return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
+        default:
+          return 'bg-slate-500/15 text-slate-300 border-slate-500/30';
+      }
+    }
+
+    /**
+     * Escapes HTML characters for safe template interpolation.
+     * @param {string} value
+     * @returns {string}
+     */
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // =========================================================================
+    // STATE & DOM REFERENCES
+    // =========================================================================
+
+    const state = {
+      activeFaction: 'All',
+      expandedLoreIds: new Set(),
+    };
+
+    const dom = {
+      visibleForces: document.getElementById('stat-visible-forces'),
+      visibleMechs: document.getElementById('stat-visible-mechs'),
+      factionFilters: document.getElementById('faction-filters'),
+      forcesGrid: document.getElementById('forces-grid'),
+      emptyState: document.getElementById('empty-state'),
+      emptyStateTitle: document.getElementById('empty-state-title'),
+      emptyStateMessage: document.getElementById('empty-state-message'),
+      emptyResetBtn: document.getElementById('empty-reset-btn'),
+    };
+
+    // =========================================================================
+    // RENDERING LOGIC
+    // =========================================================================
+
+    /**
+     * Filters FORCES_DATA based on the currently selected faction pill.
+     * @returns {Array}
+     */
+    function getVisibleForces() {
+      if (state.activeFaction === 'All') {
+        return FORCES_DATA;
+      }
+      return FORCES_DATA.filter((force) => force.faction === state.activeFaction);
+    }
+
+    /**
+     * Updates the header telemetry counters to reflect currently visible forces and mechs.
+     * @param {Array} visibleForces
+     */
+    function updateTelemetry(visibleForces) {
+      if (dom.visibleForces) {
+        dom.visibleForces.textContent = String(visibleForces.length);
+      }
+      if (dom.visibleMechs) {
+        const mechCount = visibleForces.reduce(
+          (sum, force) => sum + (Array.isArray(force.mechs) ? force.mechs.length : 0),
+          0
+        );
+        dom.visibleMechs.textContent = String(mechCount);
+      }
+    }
+
+    /**
+     * Renders the faction filter pills with live force counts.
+     */
+    function renderFactionPills() {
+      if (!dom.factionFilters) return;
+
+      const pillsMarkup = FACTIONS.map((faction) => {
+        const count =
+          faction === 'All'
+            ? FORCES_DATA.length
+            : FORCES_DATA.filter((force) => force.faction === faction).length;
+
+        const isActive = state.activeFaction === faction;
+        const theme = FACTION_THEMES[faction] || FACTION_THEMES.All;
+        const stateClasses = isActive ? theme.pillActive : theme.pillInactive;
+
+        return `
+          <button
+            type="button"
+            role="tab"
+            aria-selected="${isActive ? 'true' : 'false'}"
+            data-faction="${escapeHtml(faction)}"
+            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border text-xs sm:text-sm font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${stateClasses}"
+          >
+            <span>${escapeHtml(faction)}</span>
+            <span class="px-1.5 py-0.5 rounded bg-black/25 text-[11px] leading-none">${count}</span>
+          </button>
+        `;
+      }).join('');
+
+      dom.factionFilters.innerHTML = pillsMarkup;
+    }
+
+    /**
+     * Generates the HTML markup for a single Force Card.
+     * @param {Object} force
+     * @returns {string}
+     */
+    function buildForceCardHTML(force) {
+      const theme = FACTION_THEMES[force.faction] || FACTION_THEMES.Mercenary;
+      const isExpanded = state.expandedLoreIds.has(force.id);
+
+      // Build itemized BattleMech roster rows
+      const mechsHTML = (force.mechs || [])
+        .map((mech) => {
+          const weightClassStyle = getWeightBadgeClass(mech.weightClass);
+          return `
+            <li class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-tactical-bg/80 border border-tactical-border/70">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-baseline gap-x-1.5">
+                  <span class="text-sm font-semibold text-slate-100">${escapeHtml(mech.name)}</span>
+                  <span class="font-mono text-xs text-tactical-muted">${escapeHtml(mech.variant)}</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="px-2 py-0.5 rounded border text-[10px] font-mono uppercase tracking-wider ${weightClassStyle}">
+                  ${escapeHtml(mech.weightClass)}
+                </span>
+                <span class="font-mono text-xs text-slate-300 w-11 text-right">
+                  ${escapeHtml(mech.pv)} <span class="text-[10px] text-tactical-muted">PV</span>
+                </span>
+              </div>
+            </li>
+          `;
+        })
+        .join('');
+
+      // Build Aerospace Support footer tags
+      const aerospaceHTML =
+        force.aerospace && force.aerospace.length > 0
+          ? force.aerospace
+              .map(
+                (unit) => `
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-tactical-bg border border-tactical-border text-[11px] font-mono text-slate-300">
+                    <span class="text-slate-100 font-medium">${escapeHtml(unit.name)}</span>
+                    <span class="text-tactical-muted">(${escapeHtml(unit.role)})</span>
+                  </span>
+                `
+              )
+              .join('')
+          : `<span class="text-xs font-mono text-tactical-muted">None assigned</span>`;
+
+      return `
+        <article class="relative flex flex-col bg-tactical-surface border border-tactical-border hover:border-slate-500/80 rounded-xl overflow-hidden shadow-lg shadow-black/25 transition-colors duration-150">
+          <!-- Subtle Faction Accent Strip -->
+          <div class="h-1 w-full ${theme.accentBar}"></div>
+
+          <div class="p-5 flex flex-col flex-1">
+            <!-- Top Row: Faction Badge + Point Value -->
+            <div class="flex items-center justify-between gap-2 mb-2.5">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-md border text-[11px] font-mono font-semibold uppercase tracking-wider ${theme.badge}">
+                ${escapeHtml(force.faction)}
+              </span>
+              <span class="font-mono text-xs text-slate-300 bg-tactical-bg border border-tactical-border rounded-md px-2 py-0.5">
+                ${escapeHtml(force.pointsUsed)} / ${escapeHtml(force.pointsMax)} <span class="text-tactical-muted">PV</span>
+              </span>
+            </div>
+
+            <!-- Group Name -->
+            <h2 class="font-display text-xl font-bold tracking-wide text-slate-50 uppercase leading-tight">
+              ${escapeHtml(force.name)}
+            </h2>
+
+            <!-- Lore Preview / Expandable Full Lore -->
+            <div class="mt-2.5">
+              <p class="text-sm text-slate-300/90 leading-relaxed ${isExpanded ? '' : 'line-clamp-3'}">
+                ${escapeHtml(force.lore)}
+              </p>
+              <button
+                type="button"
+                data-toggle-lore="${escapeHtml(force.id)}"
+                aria-expanded="${isExpanded ? 'true' : 'false'}"
+                class="mt-1.5 inline-flex items-center gap-1 text-xs font-mono uppercase tracking-wider text-amber-400 hover:text-amber-300 transition-colors cursor-pointer py-1"
+              >
+                <span>${isExpanded ? 'Show less' : 'Read more'}</span>
+                <svg
+                  class="w-3.5 h-3.5 transition-transform duration-150 ${isExpanded ? 'rotate-180' : ''}"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- BattleMech Roster Section -->
+            <div class="mt-4 pt-4 border-t border-tactical-border/80">
+              <div class="flex items-center justify-between mb-2.5">
+                <h3 class="font-mono text-[11px] font-semibold uppercase tracking-widest text-tactical-muted">
+                  BattleMech Roster (${force.mechs ? force.mechs.length : 0})
+                </h3>
+                <span class="font-mono text-[10px] uppercase tracking-wider text-tactical-muted">
+                  Class / PV
+                </span>
+              </div>
+              <ul class="space-y-2">
+                ${mechsHTML}
+              </ul>
+            </div>
+
+            <!-- Aerospace Support Footer Strip -->
+            <div class="mt-4 pt-3.5 border-t border-tactical-border/80">
+              <div class="font-mono text-[10px] font-semibold uppercase tracking-widest text-tactical-muted mb-2">
+                Aerospace Support
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                ${aerospaceHTML}
+              </div>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    /**
+     * Renders the visible force cards or the empty state if a faction has no forces.
+     */
+    function renderForces() {
+      try {
+        const visibleForces = getVisibleForces();
+        updateTelemetry(visibleForces);
+
+        if (!dom.forcesGrid || !dom.emptyState) return;
+
+        if (visibleForces.length === 0) {
+          dom.forcesGrid.innerHTML = '';
+          dom.emptyState.classList.remove('hidden');
+
+          if (dom.emptyStateTitle) {
+            dom.emptyStateTitle.textContent = `No ${state.activeFaction} Forces Registered`;
+          }
+          if (dom.emptyStateMessage) {
+            dom.emptyStateMessage.textContent = `There are currently 0 ${state.activeFaction} forces in your database. To add one, append a new force object with faction: '${state.activeFaction}' to the FORCES_DATA array inside this HTML file.`;
+          }
+          return;
+        }
+
+        dom.emptyState.classList.add('hidden');
+        dom.forcesGrid.innerHTML = visibleForces.map(buildForceCardHTML).join('');
+      } catch (error) {
+        console.error('Failed to render BattleTech force roster:', error);
+        if (dom.forcesGrid) {
+          dom.forcesGrid.innerHTML = `
+            <div class="col-span-full bg-rose-500/10 border border-rose-500/30 rounded-xl p-6 text-center text-sm text-rose-200">
+              Unable to render force roster. Please check the browser console for details.
+            </div>
+          `;
+        }
+      }
+    }
+
+    // =========================================================================
+    // EVENT HANDLERS & INITIALIZATION
+    // =========================================================================
+
+    function bindEvents() {
+      // Faction pill clicks (event delegation)
+      if (dom.factionFilters) {
+        dom.factionFilters.addEventListener('click', (event) => {
+          const button = event.target.closest('button[data-faction]');
+          if (!button) return;
+
+          const selectedFaction = button.getAttribute('data-faction');
+          if (!selectedFaction || selectedFaction === state.activeFaction) return;
+
+          state.activeFaction = selectedFaction;
+          renderFactionPills();
+          renderForces();
+        });
+      }
+
+      // Empty state "Show All Forces" reset button
+      if (dom.emptyResetBtn) {
+        dom.emptyResetBtn.addEventListener('click', () => {
+          state.activeFaction = 'All';
+          renderFactionPills();
+          renderForces();
+        });
+      }
+
+      // Lore "Read more / Show less" toggles (event delegation)
+      if (dom.forcesGrid) {
+        dom.forcesGrid.addEventListener('click', (event) => {
+          const toggleBtn = event.target.closest('button[data-toggle-lore]');
+          if (!toggleBtn) return;
+
+          const forceId = toggleBtn.getAttribute('data-toggle-lore');
+          if (!forceId) return;
+
+          if (state.expandedLoreIds.has(forceId)) {
+            state.expandedLoreIds.delete(forceId);
+          } else {
+            state.expandedLoreIds.add(forceId);
+          }
+
+          renderForces();
+        });
+      }
+    }
+
+    function init() {
+      bindEvents();
+      renderFactionPills();
+      renderForces();
+    }
+
+    // Run immediately if DOM is ready, otherwise wait for DOMContentLoaded
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+</body>
+</html>
